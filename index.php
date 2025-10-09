@@ -2,7 +2,7 @@
 /**
  * Formulário de Registro de Atas de Obra
  * 
- * @version 1.3.1
+ * @version 1.4.0
  */
 
 // Inicia a sessão
@@ -106,6 +106,53 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             } else {
                 echo json_encode(['success' => false, 'message' => 'Erro ao deletar']);
             }
+            exit;
+            
+        case 'listar_atas':
+            $pagina = isset($_POST['pagina']) ? intval($_POST['pagina']) : 1;
+            $por_pagina = 10;
+            $offset = ($pagina - 1) * $por_pagina;
+            
+            // Conta total de atas
+            $total = $wpdb->get_var("SELECT COUNT(*) FROM wincor_atas");
+            $total_paginas = ceil($total / $por_pagina);
+            
+            // Busca atas da página atual
+            $atas = $wpdb->get_results($wpdb->prepare(
+                "SELECT id, data_criacao, data_ata FROM wincor_atas ORDER BY data_criacao DESC LIMIT %d OFFSET %d",
+                $por_pagina,
+                $offset
+            ));
+            
+            // Para cada ata, busca os metadados
+            $atas_completas = array();
+            foreach ($atas as $ata) {
+                $meta = $wpdb->get_results($wpdb->prepare(
+                    "SELECT meta_key, meta_value FROM wincor_atas_meta WHERE ata_id = %d",
+                    $ata->id
+                ));
+                
+                $ata_data = array(
+                    'id' => $ata->id,
+                    'data_criacao' => $ata->data_criacao,
+                    'data_ata' => $ata->data_ata,
+                    'meta' => array()
+                );
+                
+                foreach ($meta as $m) {
+                    $ata_data['meta'][$m->meta_key] = $m->meta_value;
+                }
+                
+                $atas_completas[] = $ata_data;
+            }
+            
+            echo json_encode([
+                'success' => true,
+                'atas' => $atas_completas,
+                'pagina_atual' => $pagina,
+                'total_paginas' => $total_paginas,
+                'total_registros' => $total
+            ]);
             exit;
     }
 }
@@ -619,6 +666,11 @@ $obras = $wpdb->get_results("SELECT config_value FROM wincor_config WHERE config
                                     Obras
                                 </button>
                             </li>
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link" id="relatorios-tab" data-bs-toggle="tab" data-bs-target="#relatorios-panel" type="button" role="tab">
+                                    Relatórios
+                                </button>
+                            </li>
                         </ul>
 
                         <!-- Conteúdo das Abas -->
@@ -661,6 +713,26 @@ $obras = $wpdb->get_results("SELECT config_value FROM wincor_config WHERE config
                                         </div>
                                     </div>
                                 </div>
+                            </div>
+
+                            <!-- Aba Relatórios -->
+                            <div class="tab-pane fade" id="relatorios-panel" role="tabpanel">
+                                <div class="mb-3 d-flex justify-content-between align-items-center">
+                                    <h6 class="mb-0">Atas Registradas</h6>
+                                    <span id="totalRegistros" class="badge bg-primary">0 registros</span>
+                                </div>
+                                <div id="listaAtas">
+                                    <div class="text-center py-3">
+                                        <div class="spinner-border text-primary" role="status">
+                                            <span class="visually-hidden">Carregando...</span>
+                                        </div>
+                                    </div>
+                                </div>
+                                <!-- Paginação -->
+                                <nav aria-label="Navegação de páginas" id="paginacaoContainer" class="d-none">
+                                    <ul class="pagination pagination-sm justify-content-center mt-3" id="paginacao">
+                                    </ul>
+                                </nav>
                             </div>
                         </div>
                     </div>
@@ -776,6 +848,7 @@ $obras = $wpdb->get_results("SELECT config_value FROM wincor_config WHERE config
                     // Carrega as listas
                     carregarLista('tecnico');
                     carregarLista('obra');
+                    carregarRelatorios(1);
                 } else {
                     // Mostra erro
                     erroDiv.textContent = data.message || 'Senha incorreta!';
@@ -1003,6 +1076,131 @@ $obras = $wpdb->get_results("SELECT config_value FROM wincor_config WHERE config
                 adicionarItem('obra');
             }
         });
+
+        // Função para carregar relatórios de atas
+        function carregarRelatorios(pagina = 1) {
+            const container = document.getElementById('listaAtas');
+            container.innerHTML = '<div class="text-center py-3"><div class="spinner-border text-primary" role="status"></div></div>';
+            
+            fetch('index.php', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body: 'action=listar_atas&pagina=' + pagina
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    document.getElementById('totalRegistros').textContent = data.total_registros + ' registro' + (data.total_registros !== 1 ? 's' : '');
+                    
+                    if (data.atas.length === 0) {
+                        container.innerHTML = '<div class="alert alert-info">Nenhuma ata registrada</div>';
+                        document.getElementById('paginacaoContainer').classList.add('d-none');
+                    } else {
+                        container.innerHTML = '';
+                        data.atas.forEach(ata => {
+                            container.appendChild(criarCardAta(ata));
+                        });
+                        
+                        // Cria paginação
+                        if (data.total_paginas > 1) {
+                            criarPaginacao(data.pagina_atual, data.total_paginas);
+                            document.getElementById('paginacaoContainer').classList.remove('d-none');
+                        } else {
+                            document.getElementById('paginacaoContainer').classList.add('d-none');
+                        }
+                    }
+                }
+            });
+        }
+
+        // Função para criar card de ata
+        function criarCardAta(ata) {
+            const card = document.createElement('div');
+            card.className = 'card mb-2';
+            
+            // Extrai técnicos
+            const tecnicos = [];
+            let i = 1;
+            while (ata.meta['tecnico_' + i]) {
+                tecnicos.push(ata.meta['tecnico_' + i]);
+                i++;
+            }
+            
+            // Formata datas
+            const dataAta = new Date(ata.data_ata + 'T00:00:00').toLocaleDateString('pt-BR');
+            const dataCriacao = new Date(ata.data_criacao).toLocaleDateString('pt-BR');
+            const horaCriacao = new Date(ata.data_criacao).toLocaleTimeString('pt-BR', {hour: '2-digit', minute: '2-digit'});
+            
+            card.innerHTML = `
+                <div class="card-body p-2 p-md-3">
+                    <div class="row g-2">
+                        <div class="col-12 col-md-6">
+                            <small class="text-muted d-block">ID: #${ata.id}</small>
+                            <strong>Data da Ata:</strong> ${dataAta}
+                        </div>
+                        <div class="col-12 col-md-6">
+                            <small class="text-muted d-block">Registrado em: ${dataCriacao} às ${horaCriacao}</small>
+                        </div>
+                    </div>
+                    <hr class="my-2">
+                    <div class="row g-2">
+                        <div class="col-12 col-md-6">
+                            <strong>Obra:</strong> ${ata.meta.obra || '-'}
+                        </div>
+                        <div class="col-12 col-md-6">
+                            <strong>Técnico(s):</strong> ${tecnicos.join(', ') || '-'}
+                        </div>
+                    </div>
+                    <div class="row g-2 mt-1">
+                        <div class="col-6 col-md-3">
+                            <strong>Início:</strong> ${ata.meta.hora_inicio || '-'}
+                        </div>
+                        <div class="col-6 col-md-3">
+                            <strong>Término:</strong> ${ata.meta.hora_termino || '-'}
+                        </div>
+                    </div>
+                    ${ata.meta.atividades ? `
+                    <div class="mt-2">
+                        <strong>Atividades:</strong>
+                        <p class="mb-0 small">${ata.meta.atividades}</p>
+                    </div>
+                    ` : ''}
+                </div>
+            `;
+            
+            return card;
+        }
+
+        // Função para criar paginação
+        function criarPaginacao(paginaAtual, totalPaginas) {
+            const paginacao = document.getElementById('paginacao');
+            paginacao.innerHTML = '';
+            
+            // Botão anterior
+            const liPrev = document.createElement('li');
+            liPrev.className = 'page-item' + (paginaAtual === 1 ? ' disabled' : '');
+            liPrev.innerHTML = `<a class="page-link" href="#" onclick="carregarRelatorios(${paginaAtual - 1}); return false;">Anterior</a>`;
+            paginacao.appendChild(liPrev);
+            
+            // Páginas
+            const inicio = Math.max(1, paginaAtual - 2);
+            const fim = Math.min(totalPaginas, paginaAtual + 2);
+            
+            for (let i = inicio; i <= fim; i++) {
+                const li = document.createElement('li');
+                li.className = 'page-item' + (i === paginaAtual ? ' active' : '');
+                li.innerHTML = `<a class="page-link" href="#" onclick="carregarRelatorios(${i}); return false;">${i}</a>`;
+                paginacao.appendChild(li);
+            }
+            
+            // Botão próximo
+            const liNext = document.createElement('li');
+            liNext.className = 'page-item' + (paginaAtual === totalPaginas ? ' disabled' : '');
+            liNext.innerHTML = `<a class="page-link" href="#" onclick="carregarRelatorios(${paginaAtual + 1}); return false;">Próximo</a>`;
+            paginacao.appendChild(liNext);
+        }
 
         // Reset do modal quando fechar
         document.getElementById('modalAdmin').addEventListener('hidden.bs.modal', function () {
