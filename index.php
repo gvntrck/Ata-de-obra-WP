@@ -2,11 +2,111 @@
 /**
  * Formulário de Registro de Atas de Obra
  * 
- * @version 1.0.0
+ * @version 1.1.0
  */
+
+// Inicia a sessão
+session_start();
 
 // Carrega o WordPress
 require_once('../../wp-load.php');
+
+global $wpdb;
+
+// Cria as tabelas na primeira execução
+criar_tabelas_atas();
+
+// Verifica/Insere senha padrão na configuração
+$senha_config = $wpdb->get_var("SELECT config_value FROM wincor_config WHERE config_type = 'senha_atas'");
+if (!$senha_config) {
+    $wpdb->insert(
+        'wincor_config',
+        array(
+            'config_type' => 'senha_atas',
+            'config_value' => '1234',
+            'config_order' => 0
+        ),
+        array('%s', '%s', '%d')
+    );
+    $senha_config = '1234';
+}
+
+// Processa logout
+if (isset($_GET['logout'])) {
+    unset($_SESSION['atas_autenticado']);
+    header('Location: index.php');
+    exit;
+}
+
+// Processa login
+$erro_login = '';
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['senha_acesso'])) {
+    $senha_digitada = $_POST['senha_acesso'];
+    if ($senha_digitada === $senha_config) {
+        $_SESSION['atas_autenticado'] = true;
+        header('Location: index.php');
+        exit;
+    } else {
+        $erro_login = 'Senha incorreta!';
+    }
+}
+
+// Verifica se está autenticado
+if (!isset($_SESSION['atas_autenticado']) || $_SESSION['atas_autenticado'] !== true) {
+    // Exibe formulário de login
+    ?>
+    <!DOCTYPE html>
+    <html lang="pt-BR">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Acesso - Ata de Obra</title>
+        <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.7/dist/css/bootstrap.min.css" rel="stylesheet">
+        <style>
+            body {
+                background-color: #f6f6f6;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                min-height: 100vh;
+            }
+            .login-card {
+                max-width: 400px;
+                width: 100%;
+                box-shadow: 0 0 20px rgba(0,0,0,0.1);
+            }
+        </style>
+    </head>
+    <body>
+        <div class="login-card">
+            <div class="card">
+                <div class="card-header bg-primary text-white">
+                    <h4 class="mb-0">Acesso Restrito</h4>
+                </div>
+                <div class="card-body">
+                    <?php if ($erro_login): ?>
+                        <div class="alert alert-danger" role="alert">
+                            <?php echo $erro_login; ?>
+                        </div>
+                    <?php endif; ?>
+                    <form method="POST">
+                        <div class="mb-3">
+                            <label for="senha_acesso" class="form-label">Senha de Acesso</label>
+                            <input type="password" name="senha_acesso" id="senha_acesso" class="form-control" required autofocus>
+                        </div>
+                        <div class="d-grid">
+                            <button type="submit" class="btn btn-primary">Entrar</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+        <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.7/dist/js/bootstrap.min.js"></script>
+    </body>
+    </html>
+    <?php
+    exit;
+}
 
 global $wpdb;
 
@@ -207,9 +307,6 @@ function criar_tabelas_atas() {
 // Busca técnicos e obras do banco
 $tecnicos = $wpdb->get_results("SELECT config_value FROM wincor_config WHERE config_type = 'tecnico' ORDER BY config_order");
 $obras = $wpdb->get_results("SELECT config_value FROM wincor_config WHERE config_type = 'obra' ORDER BY config_order");
-
-// Cria as tabelas na primeira execução
-criar_tabelas_atas();
 ?>
 <!DOCTYPE html>
 <html lang="pt-BR">
@@ -259,8 +356,9 @@ criar_tabelas_atas();
 <body>
     <div class="container">
         <div class="">
-            <div class="card-header text-black">
+            <div class="card-header text-black d-flex justify-content-between align-items-center">
                 <h3 class="mb-0">Registro de Ata de Obra</h3>
+                <a href="?logout=1" class="btn btn-sm btn-outline-danger">Sair</a>
             </div>
             <div class="card-body">
                 <?php if ($mensagem): ?>
