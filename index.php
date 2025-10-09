@@ -263,6 +263,9 @@ criar_tabelas_atas();
             content: " *";
             color: #dc3545;
         }
+        .form-control, .form-select {
+            border: 1px solid #495057 !important;
+        }
     </style>
 </head>
 <body>
