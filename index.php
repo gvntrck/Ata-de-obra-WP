@@ -250,7 +250,6 @@ criar_tabelas_atas();
         }
         .field-group {
             margin-bottom: 1rem;
-            padding: 0.5rem;
             background-color: #f8f9fa;
             border-radius: 0.25rem;
         }
