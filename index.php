@@ -2,7 +2,7 @@
 /**
  * Formulário de Registro de Atas de Obra
  * 
- * @version 1.1.0
+ * @version 1.2.0
  */
 
 // Inicia a sessão
@@ -16,8 +16,21 @@ global $wpdb;
 // Cria as tabelas na primeira execução
 criar_tabelas_atas();
 
-// Busca a senha de acesso do banco
+// Busca as senhas de acesso do banco
 $senha_config = $wpdb->get_var("SELECT config_value FROM wincor_config WHERE config_type = 'senha_atas'");
+$senha_admin = $wpdb->get_var("SELECT config_value FROM wincor_config WHERE config_type = 'senha_admin'");
+
+// Processa autenticação do modal admin via AJAX
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'verificar_senha_admin') {
+    header('Content-Type: application/json');
+    $senha_digitada = $_POST['senha_admin'] ?? '';
+    if ($senha_digitada === $senha_admin) {
+        echo json_encode(['success' => true]);
+    } else {
+        echo json_encode(['success' => false, 'message' => 'Senha incorreta!']);
+    }
+    exit;
+}
 
 // Processa logout
 if (isset($_GET['logout'])) {
@@ -478,8 +491,50 @@ $obras = $wpdb->get_results("SELECT config_value FROM wincor_config WHERE config
                     <!-- Botões -->
                     <div class="d-grid gap-2 d-md-flex justify-content-md-start">
                         <button type="submit" class="btn btn-primary">Salvar Ata</button>
+                        <button type="button" class="btn btn-secondary" data-bs-toggle="modal" data-bs-target="#modalAdmin">Admin</button>
                     </div>
                 </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Admin -->
+    <div class="modal fade" id="modalAdmin" tabindex="-1" aria-labelledby="modalAdminLabel" aria-hidden="true" data-bs-backdrop="static" data-bs-keyboard="false">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <!-- Tela de Login do Admin -->
+                <div id="adminLogin">
+                    <div class="modal-header bg-warning">
+                        <h5 class="modal-title" id="modalAdminLabel">Acesso Administrativo</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div id="erroSenhaAdmin" class="alert alert-danger d-none" role="alert"></div>
+                        <form id="formSenhaAdmin">
+                            <div class="mb-3">
+                                <label for="senhaAdmin" class="form-label">Senha de Administrador</label>
+                                <input type="password" class="form-control" id="senhaAdmin" required autofocus>
+                            </div>
+                            <div class="d-grid">
+                                <button type="submit" class="btn btn-warning">Entrar</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+
+                <!-- Conteúdo do Admin (oculto inicialmente) -->
+                <div id="adminConteudo" class="d-none">
+                    <div class="modal-header bg-success text-white">
+                        <h5 class="modal-title">Painel Administrativo</h5>
+                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body">
+                        <p class="text-muted">Conteúdo administrativo será adicionado aqui...</p>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
@@ -554,6 +609,51 @@ $obras = $wpdb->get_results("SELECT config_value FROM wincor_config WHERE config
         function removerCampo(element) {
             element.closest('.field-group').remove();
         }
+
+        // Autenticação do Modal Admin
+        document.getElementById('formSenhaAdmin').addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            const senha = document.getElementById('senhaAdmin').value;
+            const erroDiv = document.getElementById('erroSenhaAdmin');
+            
+            // Envia requisição AJAX para verificar senha
+            fetch('index.php', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body: 'action=verificar_senha_admin&senha_admin=' + encodeURIComponent(senha)
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    // Oculta login e mostra conteúdo
+                    document.getElementById('adminLogin').classList.add('d-none');
+                    document.getElementById('adminConteudo').classList.remove('d-none');
+                    erroDiv.classList.add('d-none');
+                    document.getElementById('senhaAdmin').value = '';
+                } else {
+                    // Mostra erro
+                    erroDiv.textContent = data.message || 'Senha incorreta!';
+                    erroDiv.classList.remove('d-none');
+                    document.getElementById('senhaAdmin').value = '';
+                    document.getElementById('senhaAdmin').focus();
+                }
+            })
+            .catch(error => {
+                erroDiv.textContent = 'Erro ao verificar senha. Tente novamente.';
+                erroDiv.classList.remove('d-none');
+            });
+        });
+
+        // Reset do modal quando fechar
+        document.getElementById('modalAdmin').addEventListener('hidden.bs.modal', function () {
+            document.getElementById('adminLogin').classList.remove('d-none');
+            document.getElementById('adminConteudo').classList.add('d-none');
+            document.getElementById('erroSenhaAdmin').classList.add('d-none');
+            document.getElementById('senhaAdmin').value = '';
+        });
     </script>
 </body>
 </html>
