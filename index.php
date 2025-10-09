@@ -202,20 +202,6 @@ function criar_tabelas_atas() {
     dbDelta($sql_atas);
     dbDelta($sql_atas_meta);
     dbDelta($sql_config);
-    
-    // Insere dados de exemplo se a tabela estiver vazia
-    $count = $wpdb->get_var("SELECT COUNT(*) FROM wincor_config");
-    if ($count == 0) {
-        // Técnicos de exemplo
-        $wpdb->insert('wincor_config', array('config_type' => 'tecnico', 'config_value' => 'João Silva', 'config_order' => 1));
-        $wpdb->insert('wincor_config', array('config_type' => 'tecnico', 'config_value' => 'Maria Santos', 'config_order' => 2));
-        $wpdb->insert('wincor_config', array('config_type' => 'tecnico', 'config_value' => 'Pedro Oliveira', 'config_order' => 3));
-        
-        // Obras de exemplo
-        $wpdb->insert('wincor_config', array('config_type' => 'obra', 'config_value' => 'Obra Centro Comercial', 'config_order' => 1));
-        $wpdb->insert('wincor_config', array('config_type' => 'obra', 'config_value' => 'Obra Residencial Norte', 'config_order' => 2));
-        $wpdb->insert('wincor_config', array('config_type' => 'obra', 'config_value' => 'Obra Industrial Sul', 'config_order' => 3));
-    }
 }
 
 // Busca técnicos e obras do banco
