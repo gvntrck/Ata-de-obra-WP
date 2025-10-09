@@ -392,7 +392,7 @@ criar_tabelas_atas();
                     </div>
 
                     <!-- Botões -->
-                    <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                    <div class="d-grid gap-2 d-md-flex justify-content-md-start">
                         <button type="submit" class="btn btn-primary">Salvar Ata</button>
                     </div>
                 </form>
