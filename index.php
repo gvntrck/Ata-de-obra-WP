@@ -2,7 +2,7 @@
 /**
  * Formulário de Registro de Atas de Obra
  * 
- * @version 1.3.0
+ * @version 1.3.1
  */
 
 // Inicia a sessão
@@ -743,6 +743,9 @@ $obras = $wpdb->get_results("SELECT config_value FROM wincor_config WHERE config
             element.closest('.field-group').remove();
         }
 
+        // Flag para controlar se houve alterações
+        let houveAlteracoes = false;
+
         // Autenticação do Modal Admin
         document.getElementById('formSenhaAdmin').addEventListener('submit', function(e) {
             e.preventDefault();
@@ -766,6 +769,9 @@ $obras = $wpdb->get_results("SELECT config_value FROM wincor_config WHERE config
                     document.getElementById('adminConteudo').classList.remove('d-none');
                     erroDiv.classList.add('d-none');
                     document.getElementById('senhaAdmin').value = '';
+                    
+                    // Reset da flag de alterações
+                    houveAlteracoes = false;
                     
                     // Carrega as listas
                     carregarLista('tecnico');
@@ -885,6 +891,7 @@ $obras = $wpdb->get_results("SELECT config_value FROM wincor_config WHERE config
             .then(data => {
                 if (data.success) {
                     input.value = '';
+                    houveAlteracoes = true;
                     carregarLista(tipo);
                 } else {
                     alert(data.message || 'Erro ao adicionar');
@@ -933,6 +940,7 @@ $obras = $wpdb->get_results("SELECT config_value FROM wincor_config WHERE config
             .then(response => response.json())
             .then(data => {
                 if (data.success) {
+                    houveAlteracoes = true;
                     carregarLista(tipo);
                 } else {
                     alert(data.message || 'Erro ao editar');
@@ -975,6 +983,7 @@ $obras = $wpdb->get_results("SELECT config_value FROM wincor_config WHERE config
             .then(response => response.json())
             .then(data => {
                 if (data.success) {
+                    houveAlteracoes = true;
                     carregarLista(tipo);
                 } else {
                     alert(data.message || 'Erro ao deletar');
@@ -997,6 +1006,11 @@ $obras = $wpdb->get_results("SELECT config_value FROM wincor_config WHERE config
 
         // Reset do modal quando fechar
         document.getElementById('modalAdmin').addEventListener('hidden.bs.modal', function () {
+            // Se houve alterações, recarrega a página
+            if (houveAlteracoes) {
+                location.reload();
+            }
+            
             document.getElementById('adminLogin').classList.remove('d-none');
             document.getElementById('adminConteudo').classList.add('d-none');
             document.getElementById('erroSenhaAdmin').classList.add('d-none');
