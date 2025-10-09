@@ -254,10 +254,10 @@ criar_tabelas_atas();
             background-color: #f8f9fa;
             border-radius: 0.25rem;
         }
-        .remove-btn {
-            color: #dc3545;
-            cursor: pointer;
+        .btn-remove {
+            padding: 0.25rem 0.5rem;
             font-size: 1.2rem;
+            line-height: 1;
         }
         .required-label::after {
             content: " *";
@@ -417,7 +417,7 @@ criar_tabelas_atas();
                     <?php endforeach; ?>
                 </select>
                 <button type="button" class="btn btn-success btn-add" onclick="adicionarTecnico()">+</button>
-                <span class="remove-btn" onclick="removerCampo(this)">×</span>
+                <button type="button" class="btn btn-danger btn-remove" onclick="removerCampo(this)">×</button>
             `;
             container.appendChild(newField);
         }
@@ -437,7 +437,7 @@ criar_tabelas_atas();
                     </div>
                     <div class="col-md-2">
                         <button type="button" class="btn btn-success btn-add" onclick="adicionarParticipante()">+</button>
-                        <span class="remove-btn" onclick="removerCampo(this)">×</span>
+                        <button type="button" class="btn btn-danger btn-remove" onclick="removerCampo(this)">×</button>
                     </div>
                 </div>
             `;
@@ -459,7 +459,7 @@ criar_tabelas_atas();
                     </div>
                     <div class="col-md-2">
                         <button type="button" class="btn btn-success btn-add" onclick="adicionarPendencia()">+</button>
-                        <span class="remove-btn" onclick="removerCampo(this)">×</span>
+                        <button type="button" class="btn btn-danger btn-remove" onclick="removerCampo(this)">×</button>
                     </div>
                 </div>
             `;
