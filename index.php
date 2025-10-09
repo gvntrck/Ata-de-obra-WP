@@ -16,20 +16,8 @@ global $wpdb;
 // Cria as tabelas na primeira execução
 criar_tabelas_atas();
 
-// Verifica/Insere senha padrão na configuração
+// Busca a senha de acesso do banco
 $senha_config = $wpdb->get_var("SELECT config_value FROM wincor_config WHERE config_type = 'senha_atas'");
-if (!$senha_config) {
-    $wpdb->insert(
-        'wincor_config',
-        array(
-            'config_type' => 'senha_atas',
-            'config_value' => '1234',
-            'config_order' => 0
-        ),
-        array('%s', '%s', '%d')
-    );
-    $senha_config = '1234';
-}
 
 // Processa logout
 if (isset($_GET['logout'])) {
