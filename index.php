@@ -2,7 +2,7 @@
 /**
  * Formulário de Registro de Atas de Obra
  * 
- * @version 1.2.0
+ * @version 1.3.0
  */
 
 // Inicia a sessão
@@ -30,6 +30,84 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         echo json_encode(['success' => false, 'message' => 'Senha incorreta!']);
     }
     exit;
+}
+
+// Processa ações administrativas via AJAX
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
+    header('Content-Type: application/json');
+    
+    switch ($_POST['action']) {
+        case 'listar_config':
+            $tipo = sanitize_text_field($_POST['tipo']);
+            $items = $wpdb->get_results($wpdb->prepare(
+                "SELECT id, config_value, config_order FROM wincor_config WHERE config_type = %s ORDER BY config_order, id",
+                $tipo
+            ));
+            echo json_encode(['success' => true, 'items' => $items]);
+            exit;
+            
+        case 'adicionar_config':
+            $tipo = sanitize_text_field($_POST['tipo']);
+            $valor = sanitize_text_field($_POST['valor']);
+            
+            // Busca a maior ordem atual
+            $max_order = $wpdb->get_var($wpdb->prepare(
+                "SELECT MAX(config_order) FROM wincor_config WHERE config_type = %s",
+                $tipo
+            ));
+            
+            $result = $wpdb->insert(
+                'wincor_config',
+                array(
+                    'config_type' => $tipo,
+                    'config_value' => $valor,
+                    'config_order' => ($max_order + 1)
+                ),
+                array('%s', '%s', '%d')
+            );
+            
+            if ($result) {
+                echo json_encode(['success' => true, 'id' => $wpdb->insert_id]);
+            } else {
+                echo json_encode(['success' => false, 'message' => 'Erro ao adicionar']);
+            }
+            exit;
+            
+        case 'editar_config':
+            $id = intval($_POST['id']);
+            $valor = sanitize_text_field($_POST['valor']);
+            
+            $result = $wpdb->update(
+                'wincor_config',
+                array('config_value' => $valor),
+                array('id' => $id),
+                array('%s'),
+                array('%d')
+            );
+            
+            if ($result !== false) {
+                echo json_encode(['success' => true]);
+            } else {
+                echo json_encode(['success' => false, 'message' => 'Erro ao editar']);
+            }
+            exit;
+            
+        case 'deletar_config':
+            $id = intval($_POST['id']);
+            
+            $result = $wpdb->delete(
+                'wincor_config',
+                array('id' => $id),
+                array('%d')
+            );
+            
+            if ($result) {
+                echo json_encode(['success' => true]);
+            } else {
+                echo json_encode(['success' => false, 'message' => 'Erro ao deletar']);
+            }
+            exit;
+    }
 }
 
 // Processa logout
@@ -529,7 +607,62 @@ $obras = $wpdb->get_results("SELECT config_value FROM wincor_config WHERE config
                         <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
                     </div>
                     <div class="modal-body">
-                        <p class="text-muted">Conteúdo administrativo será adicionado aqui...</p>
+                        <!-- Abas de Navegação -->
+                        <ul class="nav nav-tabs mb-3" id="adminTabs" role="tablist">
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link active" id="tecnicos-tab" data-bs-toggle="tab" data-bs-target="#tecnicos-panel" type="button" role="tab">
+                                    Técnicos
+                                </button>
+                            </li>
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link" id="obras-tab" data-bs-toggle="tab" data-bs-target="#obras-panel" type="button" role="tab">
+                                    Obras
+                                </button>
+                            </li>
+                        </ul>
+
+                        <!-- Conteúdo das Abas -->
+                        <div class="tab-content" id="adminTabsContent">
+                            <!-- Aba Técnicos -->
+                            <div class="tab-pane fade show active" id="tecnicos-panel" role="tabpanel">
+                                <div class="mb-3">
+                                    <h6>Adicionar Novo Técnico</h6>
+                                    <div class="input-group">
+                                        <input type="text" id="novoTecnico" class="form-control" placeholder="Nome do técnico">
+                                        <button class="btn btn-primary" onclick="adicionarItem('tecnico')">Adicionar</button>
+                                    </div>
+                                </div>
+                                <hr>
+                                <h6>Técnicos Cadastrados</h6>
+                                <div id="listaTecnicos" class="list-group">
+                                    <div class="text-center py-3">
+                                        <div class="spinner-border text-primary" role="status">
+                                            <span class="visually-hidden">Carregando...</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Aba Obras -->
+                            <div class="tab-pane fade" id="obras-panel" role="tabpanel">
+                                <div class="mb-3">
+                                    <h6>Adicionar Nova Obra</h6>
+                                    <div class="input-group">
+                                        <input type="text" id="novaObra" class="form-control" placeholder="Nome da obra">
+                                        <button class="btn btn-primary" onclick="adicionarItem('obra')">Adicionar</button>
+                                    </div>
+                                </div>
+                                <hr>
+                                <h6>Obras Cadastradas</h6>
+                                <div id="listaObras" class="list-group">
+                                    <div class="text-center py-3">
+                                        <div class="spinner-border text-primary" role="status">
+                                            <span class="visually-hidden">Carregando...</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                     <div class="modal-footer">
                         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
@@ -633,6 +766,10 @@ $obras = $wpdb->get_results("SELECT config_value FROM wincor_config WHERE config
                     document.getElementById('adminConteudo').classList.remove('d-none');
                     erroDiv.classList.add('d-none');
                     document.getElementById('senhaAdmin').value = '';
+                    
+                    // Carrega as listas
+                    carregarLista('tecnico');
+                    carregarLista('obra');
                 } else {
                     // Mostra erro
                     erroDiv.textContent = data.message || 'Senha incorreta!';
@@ -645,6 +782,217 @@ $obras = $wpdb->get_results("SELECT config_value FROM wincor_config WHERE config
                 erroDiv.textContent = 'Erro ao verificar senha. Tente novamente.';
                 erroDiv.classList.remove('d-none');
             });
+        });
+
+        // Função para carregar lista de técnicos ou obras
+        function carregarLista(tipo) {
+            const containerId = tipo === 'tecnico' ? 'listaTecnicos' : 'listaObras';
+            const container = document.getElementById(containerId);
+            
+            container.innerHTML = '<div class="text-center py-3"><div class="spinner-border text-primary" role="status"></div></div>';
+            
+            fetch('index.php', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body: 'action=listar_config&tipo=' + tipo
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    if (data.items.length === 0) {
+                        container.innerHTML = '<div class="alert alert-info">Nenhum item cadastrado</div>';
+                    } else {
+                        container.innerHTML = '';
+                        data.items.forEach(item => {
+                            container.appendChild(criarItemLista(item, tipo));
+                        });
+                    }
+                }
+            });
+        }
+
+        // Função para criar elemento da lista
+        function criarItemLista(item, tipo) {
+            const div = document.createElement('div');
+            div.className = 'list-group-item d-flex justify-content-between align-items-center';
+            div.id = 'item-' + item.id;
+            
+            const span = document.createElement('span');
+            span.className = 'item-valor';
+            span.textContent = item.config_value;
+            
+            const input = document.createElement('input');
+            input.type = 'text';
+            input.className = 'form-control form-control-sm item-input d-none';
+            input.value = item.config_value;
+            
+            const btnGroup = document.createElement('div');
+            btnGroup.className = 'btn-group btn-group-sm';
+            
+            const btnEditar = document.createElement('button');
+            btnEditar.className = 'btn btn-warning btn-editar';
+            btnEditar.innerHTML = '✏️';
+            btnEditar.onclick = () => editarItem(item.id, tipo);
+            
+            const btnSalvar = document.createElement('button');
+            btnSalvar.className = 'btn btn-success btn-salvar d-none';
+            btnSalvar.innerHTML = '✓';
+            btnSalvar.onclick = () => salvarItem(item.id, tipo);
+            
+            const btnCancelar = document.createElement('button');
+            btnCancelar.className = 'btn btn-secondary btn-cancelar d-none';
+            btnCancelar.innerHTML = '✕';
+            btnCancelar.onclick = () => cancelarEdicao(item.id);
+            
+            const btnDeletar = document.createElement('button');
+            btnDeletar.className = 'btn btn-danger btn-deletar';
+            btnDeletar.innerHTML = '🗑️';
+            btnDeletar.onclick = () => deletarItem(item.id, tipo);
+            
+            btnGroup.appendChild(btnEditar);
+            btnGroup.appendChild(btnSalvar);
+            btnGroup.appendChild(btnCancelar);
+            btnGroup.appendChild(btnDeletar);
+            
+            div.appendChild(span);
+            div.appendChild(input);
+            div.appendChild(btnGroup);
+            
+            return div;
+        }
+
+        // Função para adicionar novo item
+        function adicionarItem(tipo) {
+            const inputId = tipo === 'tecnico' ? 'novoTecnico' : 'novaObra';
+            const input = document.getElementById(inputId);
+            const valor = input.value.trim();
+            
+            if (!valor) {
+                alert('Por favor, preencha o campo');
+                return;
+            }
+            
+            fetch('index.php', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body: 'action=adicionar_config&tipo=' + tipo + '&valor=' + encodeURIComponent(valor)
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    input.value = '';
+                    carregarLista(tipo);
+                } else {
+                    alert(data.message || 'Erro ao adicionar');
+                }
+            });
+        }
+
+        // Função para editar item
+        function editarItem(id, tipo) {
+            const item = document.getElementById('item-' + id);
+            const span = item.querySelector('.item-valor');
+            const input = item.querySelector('.item-input');
+            const btnEditar = item.querySelector('.btn-editar');
+            const btnSalvar = item.querySelector('.btn-salvar');
+            const btnCancelar = item.querySelector('.btn-cancelar');
+            const btnDeletar = item.querySelector('.btn-deletar');
+            
+            span.classList.add('d-none');
+            input.classList.remove('d-none');
+            btnEditar.classList.add('d-none');
+            btnSalvar.classList.remove('d-none');
+            btnCancelar.classList.remove('d-none');
+            btnDeletar.classList.add('d-none');
+            
+            input.focus();
+        }
+
+        // Função para salvar edição
+        function salvarItem(id, tipo) {
+            const item = document.getElementById('item-' + id);
+            const input = item.querySelector('.item-input');
+            const valor = input.value.trim();
+            
+            if (!valor) {
+                alert('O campo não pode estar vazio');
+                return;
+            }
+            
+            fetch('index.php', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body: 'action=editar_config&id=' + id + '&valor=' + encodeURIComponent(valor)
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    carregarLista(tipo);
+                } else {
+                    alert(data.message || 'Erro ao editar');
+                }
+            });
+        }
+
+        // Função para cancelar edição
+        function cancelarEdicao(id) {
+            const item = document.getElementById('item-' + id);
+            const span = item.querySelector('.item-valor');
+            const input = item.querySelector('.item-input');
+            const btnEditar = item.querySelector('.btn-editar');
+            const btnSalvar = item.querySelector('.btn-salvar');
+            const btnCancelar = item.querySelector('.btn-cancelar');
+            const btnDeletar = item.querySelector('.btn-deletar');
+            
+            input.value = span.textContent;
+            span.classList.remove('d-none');
+            input.classList.add('d-none');
+            btnEditar.classList.remove('d-none');
+            btnSalvar.classList.add('d-none');
+            btnCancelar.classList.add('d-none');
+            btnDeletar.classList.remove('d-none');
+        }
+
+        // Função para deletar item
+        function deletarItem(id, tipo) {
+            if (!confirm('Tem certeza que deseja deletar este item?')) {
+                return;
+            }
+            
+            fetch('index.php', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body: 'action=deletar_config&id=' + id
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    carregarLista(tipo);
+                } else {
+                    alert(data.message || 'Erro ao deletar');
+                }
+            });
+        }
+
+        // Permite adicionar com Enter
+        document.getElementById('novoTecnico').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                adicionarItem('tecnico');
+            }
+        });
+        
+        document.getElementById('novaObra').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                adicionarItem('obra');
+            }
         });
 
         // Reset do modal quando fechar
