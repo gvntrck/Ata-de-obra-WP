@@ -98,15 +98,24 @@ if (!isset($_SESSION['atas_autenticado']) || $_SESSION['atas_autenticado'] !== t
 
 global $wpdb;
 
-// Processa o formulário
+// Recupera mensagens da sessão (após redirect)
 $mensagem = '';
 $tipo_mensagem = '';
+if (isset($_SESSION['mensagem'])) {
+    $mensagem = $_SESSION['mensagem'];
+    $tipo_mensagem = $_SESSION['tipo_mensagem'];
+    unset($_SESSION['mensagem']);
+    unset($_SESSION['tipo_mensagem']);
+}
 
+// Processa o formulário
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['confirmar_envio'])) {
     // Validação dos campos obrigatórios
     if (empty($_POST['tecnicos']) || empty($_POST['obra']) || empty($_POST['hora_inicio']) || empty($_POST['hora_termino'])) {
-        $mensagem = 'Por favor, preencha todos os campos obrigatórios.';
-        $tipo_mensagem = 'danger';
+        $_SESSION['mensagem'] = 'Por favor, preencha todos os campos obrigatórios.';
+        $_SESSION['tipo_mensagem'] = 'danger';
+        header('Location: index.php');
+        exit;
     } else {
         // Cria as tabelas se não existirem
         criar_tabelas_atas();
@@ -242,11 +251,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['confirmar_envio'])) {
                 }
             }
             
-            $mensagem = 'Ata de obra registrada com sucesso! ID: ' . $ata_id;
-            $tipo_mensagem = 'success';
+            $_SESSION['mensagem'] = 'Ata de obra registrada com sucesso! ID: ' . $ata_id;
+            $_SESSION['tipo_mensagem'] = 'success';
+            header('Location: index.php');
+            exit;
         } else {
-            $mensagem = 'Erro ao salvar a ata. Por favor, tente novamente.';
-            $tipo_mensagem = 'danger';
+            $_SESSION['mensagem'] = 'Erro ao salvar a ata. Por favor, tente novamente.';
+            $_SESSION['tipo_mensagem'] = 'danger';
+            header('Location: index.php');
+            exit;
         }
     }
 }
