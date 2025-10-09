@@ -266,12 +266,15 @@ criar_tabelas_atas();
         .form-control, .form-select {
             border: 1px solid #495057 !important;
         }
+        .form-check-input {
+            border: 1px solid #495057 !important;
+        }
     </style>
 </head>
 <body>
     <div class="container">
         <div class="">
-            <div class="card-header bg-primary text-white">
+            <div class="card-header text-black">
                 <h3 class="mb-0">Registro de Ata de Obra</h3>
             </div>
             <div class="card-body">
@@ -390,7 +393,6 @@ criar_tabelas_atas();
 
                     <!-- Botões -->
                     <div class="d-grid gap-2 d-md-flex justify-content-md-end">
-                        <button type="reset" class="btn btn-secondary">Limpar</button>
                         <button type="submit" class="btn btn-primary">Salvar Ata</button>
                     </div>
                 </form>
