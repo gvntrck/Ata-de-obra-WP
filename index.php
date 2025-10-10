@@ -2,7 +2,7 @@
 /**
  * Formulário de Registro de Atas de Obra
  * 
- * @version 1.5.0
+ * @version 1.6.0
  */
 
 // Inicia a sessão
@@ -245,6 +245,30 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             }
             
             fclose($output);
+            exit;
+            
+        case 'deletar_ata':
+            $ata_id = intval($_POST['ata_id']);
+            
+            // Deleta os metadados da ata
+            $result_meta = $wpdb->delete(
+                'wincor_atas_meta',
+                array('ata_id' => $ata_id),
+                array('%d')
+            );
+            
+            // Deleta a ata
+            $result_ata = $wpdb->delete(
+                'wincor_atas',
+                array('id' => $ata_id),
+                array('%d')
+            );
+            
+            if ($result_ata) {
+                echo json_encode(['success' => true]);
+            } else {
+                echo json_encode(['success' => false, 'message' => 'Erro ao deletar ata']);
+            }
             exit;
     }
 }
@@ -1261,8 +1285,11 @@ $obras = $wpdb->get_results("SELECT config_value FROM wincor_config WHERE config
                             <small class="text-muted d-block">ID: #${ata.id}</small>
                             <strong>Data da Ata:</strong> ${dataAta}
                         </div>
-                        <div class="col-12 col-md-6">
+                        <div class="col-12 col-md-6 d-flex justify-content-between align-items-start">
                             <small class="text-muted d-block">Registrado em: ${dataCriacao} às ${horaCriacao}</small>
+                            <button class="btn btn-danger btn-sm" onclick="deletarAta(${ata.id})" title="Deletar ata">
+                                🗑️
+                            </button>
                         </div>
                     </div>
                     <hr class="my-2">
@@ -1348,6 +1375,34 @@ $obras = $wpdb->get_results("SELECT config_value FROM wincor_config WHERE config
             document.body.appendChild(form);
             form.submit();
             document.body.removeChild(form);
+        }
+
+        // Função para deletar ata
+        function deletarAta(ataId) {
+            if (!confirm('Tem certeza que deseja deletar esta ata?\n\nEsta ação não pode ser desfeita!')) {
+                return;
+            }
+            
+            fetch('index.php', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body: 'action=deletar_ata&ata_id=' + ataId
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    alert('Ata deletada com sucesso!');
+                    // Recarrega a lista de relatórios
+                    carregarRelatorios(1);
+                } else {
+                    alert(data.message || 'Erro ao deletar ata');
+                }
+            })
+            .catch(error => {
+                alert('Erro ao deletar ata. Tente novamente.');
+            });
         }
 
         // Função para criar paginação
