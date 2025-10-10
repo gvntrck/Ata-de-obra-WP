@@ -1379,6 +1379,11 @@ $obras = $wpdb->get_results("SELECT config_value FROM wincor_config WHERE config
             paginacao.appendChild(liNext);
         }
 
+        // Foco automático no campo de senha ao abrir o modal
+        document.getElementById('modalAdmin').addEventListener('shown.bs.modal', function () {
+            document.getElementById('senhaAdmin').focus();
+        });
+
         // Reset do modal quando fechar
         document.getElementById('modalAdmin').addEventListener('hidden.bs.modal', function () {
             // Se houve alterações, recarrega a página
