@@ -2,7 +2,7 @@
 /**
  * Formulário de Registro de Atas de Obra
  * 
- * @version 1.4.0
+ * @version 1.5.0
  */
 
 // Inicia a sessão
@@ -153,6 +153,98 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                 'total_paginas' => $total_paginas,
                 'total_registros' => $total
             ]);
+            exit;
+            
+        case 'exportar_csv':
+            // Busca todas as atas
+            $atas = $wpdb->get_results("SELECT id, data_criacao, data_ata FROM wincor_atas ORDER BY data_criacao DESC");
+            
+            // Configura headers para download
+            header('Content-Type: text/csv; charset=utf-8');
+            header('Content-Disposition: attachment; filename="atas_obra_' . date('Y-m-d_His') . '.csv"');
+            
+            // Abre output
+            $output = fopen('php://output', 'w');
+            
+            // BOM para UTF-8 (para Excel reconhecer acentos)
+            fprintf($output, chr(0xEF).chr(0xBB).chr(0xBF));
+            
+            // Cabeçalho do CSV
+            fputcsv($output, array(
+                'ID',
+                'Data da Ata',
+                'Data de Registro',
+                'Hora de Registro',
+                'Obra',
+                'Técnicos',
+                'Hora Início',
+                'Hora Término',
+                'Participantes',
+                'Atividades Realizadas',
+                'Pendências'
+            ), ';');
+            
+            // Dados
+            foreach ($atas as $ata) {
+                $meta = $wpdb->get_results($wpdb->prepare(
+                    "SELECT meta_key, meta_value FROM wincor_atas_meta WHERE ata_id = %d",
+                    $ata->id
+                ));
+                
+                $meta_array = array();
+                foreach ($meta as $m) {
+                    $meta_array[$m->meta_key] = $m->meta_value;
+                }
+                
+                // Extrai técnicos
+                $tecnicos = array();
+                $i = 1;
+                while (isset($meta_array['tecnico_' . $i])) {
+                    $tecnicos[] = $meta_array['tecnico_' . $i];
+                    $i++;
+                }
+                
+                // Extrai participantes
+                $participantes = array();
+                $i = 1;
+                while (isset($meta_array['participante_' . $i . '_nome'])) {
+                    $nome = $meta_array['participante_' . $i . '_nome'];
+                    $funcao = isset($meta_array['participante_' . $i . '_funcao']) ? $meta_array['participante_' . $i . '_funcao'] : '';
+                    $participantes[] = $nome . ($funcao ? ' (' . $funcao . ')' : '');
+                    $i++;
+                }
+                
+                // Extrai pendências
+                $pendencias = array();
+                $i = 1;
+                while (isset($meta_array['pendencia_' . $i . '_descricao'])) {
+                    $desc = $meta_array['pendencia_' . $i . '_descricao'];
+                    $resp = isset($meta_array['pendencia_' . $i . '_responsavel']) ? $meta_array['pendencia_' . $i . '_responsavel'] : '';
+                    $pendencias[] = $desc . ($resp ? ' [Resp: ' . $resp . ']' : '');
+                    $i++;
+                }
+                
+                // Formata datas
+                $data_ata_formatada = date('d/m/Y', strtotime($ata->data_ata));
+                $data_registro = date('d/m/Y', strtotime($ata->data_criacao));
+                $hora_registro = date('H:i', strtotime($ata->data_criacao));
+                
+                fputcsv($output, array(
+                    $ata->id,
+                    $data_ata_formatada,
+                    $data_registro,
+                    $hora_registro,
+                    isset($meta_array['obra']) ? $meta_array['obra'] : '',
+                    implode(', ', $tecnicos),
+                    isset($meta_array['hora_inicio']) ? $meta_array['hora_inicio'] : '',
+                    isset($meta_array['hora_termino']) ? $meta_array['hora_termino'] : '',
+                    implode('; ', $participantes),
+                    isset($meta_array['atividades']) ? $meta_array['atividades'] : '',
+                    implode('; ', $pendencias)
+                ), ';');
+            }
+            
+            fclose($output);
             exit;
     }
 }
@@ -717,9 +809,14 @@ $obras = $wpdb->get_results("SELECT config_value FROM wincor_config WHERE config
 
                             <!-- Aba Relatórios -->
                             <div class="tab-pane fade" id="relatorios-panel" role="tabpanel">
-                                <div class="mb-3 d-flex justify-content-between align-items-center">
+                                <div class="mb-3 d-flex justify-content-between align-items-center flex-wrap gap-2">
                                     <h6 class="mb-0">Atas Registradas</h6>
-                                    <span id="totalRegistros" class="badge bg-primary">0 registros</span>
+                                    <div class="d-flex gap-2 align-items-center">
+                                        <span id="totalRegistros" class="badge bg-primary">0 registros</span>
+                                        <button class="btn btn-success btn-sm" onclick="exportarCSV()">
+                                            📊 Exportar CSV
+                                        </button>
+                                    </div>
                                 </div>
                                 <div id="listaAtas">
                                     <div class="text-center py-3">
@@ -1128,10 +1225,34 @@ $obras = $wpdb->get_results("SELECT config_value FROM wincor_config WHERE config
                 i++;
             }
             
+            // Extrai participantes
+            const participantes = [];
+            i = 1;
+            while (ata.meta['participante_' + i + '_nome']) {
+                participantes.push({
+                    nome: ata.meta['participante_' + i + '_nome'],
+                    funcao: ata.meta['participante_' + i + '_funcao'] || ''
+                });
+                i++;
+            }
+            
+            // Extrai pendências
+            const pendencias = [];
+            i = 1;
+            while (ata.meta['pendencia_' + i + '_descricao']) {
+                pendencias.push({
+                    descricao: ata.meta['pendencia_' + i + '_descricao'],
+                    responsavel: ata.meta['pendencia_' + i + '_responsavel'] || ''
+                });
+                i++;
+            }
+            
             // Formata datas
             const dataAta = new Date(ata.data_ata + 'T00:00:00').toLocaleDateString('pt-BR');
             const dataCriacao = new Date(ata.data_criacao).toLocaleDateString('pt-BR');
             const horaCriacao = new Date(ata.data_criacao).toLocaleTimeString('pt-BR', {hour: '2-digit', minute: '2-digit'});
+            
+            const accordionId = 'accordion-' + ata.id;
             
             card.innerHTML = `
                 <div class="card-body p-2 p-md-3">
@@ -1161,16 +1282,72 @@ $obras = $wpdb->get_results("SELECT config_value FROM wincor_config WHERE config
                             <strong>Término:</strong> ${ata.meta.hora_termino || '-'}
                         </div>
                     </div>
-                    ${ata.meta.atividades ? `
-                    <div class="mt-2">
-                        <strong>Atividades:</strong>
-                        <p class="mb-0 small">${ata.meta.atividades}</p>
+                    
+                    <!-- Accordion para detalhes completos -->
+                    <div class="accordion mt-3" id="${accordionId}">
+                        <div class="accordion-item">
+                            <h2 class="accordion-header">
+                                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-${ata.id}">
+                                    Ver detalhes completos
+                                </button>
+                            </h2>
+                            <div id="collapse-${ata.id}" class="accordion-collapse collapse" data-bs-parent="#${accordionId}">
+                                <div class="accordion-body">
+                                    ${ata.meta.atividades ? `
+                                    <div class="mb-3">
+                                        <strong>Atividades Realizadas:</strong>
+                                        <p class="mb-0">${ata.meta.atividades.replace(/\n/g, '<br>')}</p>
+                                    </div>
+                                    ` : ''}
+                                    
+                                    ${participantes.length > 0 ? `
+                                    <div class="mb-3">
+                                        <strong>Participantes:</strong>
+                                        <ul class="mb-0">
+                                            ${participantes.map(p => `<li>${p.nome}${p.funcao ? ' - ' + p.funcao : ''}</li>`).join('')}
+                                        </ul>
+                                    </div>
+                                    ` : ''}
+                                    
+                                    ${pendencias.length > 0 ? `
+                                    <div class="mb-0">
+                                        <strong>Pendências:</strong>
+                                        <ul class="mb-0">
+                                            ${pendencias.map(p => `<li>${p.descricao}${p.responsavel ? ' - <em>Responsável: ' + p.responsavel + '</em>' : ''}</li>`).join('')}
+                                        </ul>
+                                    </div>
+                                    ` : ''}
+                                    
+                                    ${!ata.meta.atividades && participantes.length === 0 && pendencias.length === 0 ? `
+                                    <p class="text-muted mb-0">Nenhum detalhe adicional registrado.</p>
+                                    ` : ''}
+                                </div>
+                            </div>
+                        </div>
                     </div>
-                    ` : ''}
                 </div>
             `;
             
             return card;
+        }
+
+        // Função para exportar CSV
+        function exportarCSV() {
+            // Cria um formulário temporário para fazer o download
+            const form = document.createElement('form');
+            form.method = 'POST';
+            form.action = 'index.php';
+            form.style.display = 'none';
+            
+            const input = document.createElement('input');
+            input.type = 'hidden';
+            input.name = 'action';
+            input.value = 'exportar_csv';
+            
+            form.appendChild(input);
+            document.body.appendChild(form);
+            form.submit();
+            document.body.removeChild(form);
         }
 
         // Função para criar paginação
