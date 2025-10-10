@@ -2,7 +2,7 @@
 /**
  * Formulário de Registro de Atas de Obra
  * 
- * @version 1.6.0
+ * @version 1.6.1
  */
 
 // Inicia a sessão
@@ -1276,6 +1276,27 @@ $obras = $wpdb->get_results("SELECT config_value FROM wincor_config WHERE config
             const dataCriacao = new Date(ata.data_criacao).toLocaleDateString('pt-BR');
             const horaCriacao = new Date(ata.data_criacao).toLocaleTimeString('pt-BR', {hour: '2-digit', minute: '2-digit'});
             
+            // Calcula duração
+            let duracao = '-';
+            if (ata.meta.hora_inicio && ata.meta.hora_termino) {
+                const [horaIni, minIni] = ata.meta.hora_inicio.split(':').map(Number);
+                const [horaFim, minFim] = ata.meta.hora_termino.split(':').map(Number);
+                
+                let totalMinutosIni = horaIni * 60 + minIni;
+                let totalMinutosFim = horaFim * 60 + minFim;
+                
+                // Se hora fim for menor, passou da meia-noite
+                if (totalMinutosFim < totalMinutosIni) {
+                    totalMinutosFim += 24 * 60;
+                }
+                
+                const diferencaMinutos = totalMinutosFim - totalMinutosIni;
+                const horas = Math.floor(diferencaMinutos / 60);
+                const minutos = diferencaMinutos % 60;
+                
+                duracao = `${horas}h${minutos > 0 ? minutos.toString().padStart(2, '0') + 'min' : ''}`;
+            }
+            
             const accordionId = 'accordion-' + ata.id;
             
             card.innerHTML = `
@@ -1307,6 +1328,9 @@ $obras = $wpdb->get_results("SELECT config_value FROM wincor_config WHERE config
                         </div>
                         <div class="col-6 col-md-3">
                             <strong>Término:</strong> ${ata.meta.hora_termino || '-'}
+                        </div>
+                        <div class="col-12 col-md-3">
+                            <strong>Duração:</strong> <span class="badge bg-info">${duracao}</span>
                         </div>
                     </div>
                     
