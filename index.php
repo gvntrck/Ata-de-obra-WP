@@ -1330,7 +1330,7 @@ $obras = $wpdb->get_results("SELECT config_value FROM wincor_config WHERE config
                             <strong>Término:</strong> ${ata.meta.hora_termino || '-'}
                         </div>
                         <div class="col-12 col-md-3">
-                            <strong>Duração:</strong> <span class="badge bg-info">${duracao}</span>
+                            <strong>Duração:</strong> <span>${duracao}</span>
                         </div>
                     </div>
                     
