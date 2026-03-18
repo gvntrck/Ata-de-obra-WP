@@ -2,7 +2,7 @@
 /**
  * Formulário de Registro de Atas de Obra
  * 
- * @version 1.6.1
+ * @version 1.6.2
  */
 
 // Inicia a sessão
@@ -13,6 +13,35 @@ require_once('../../wp-load.php');
 
 global $wpdb;
 
+function usuario_atas_autenticado() {
+    return isset($_SESSION['atas_autenticado']) && true === $_SESSION['atas_autenticado'];
+}
+
+function admin_atas_autenticado() {
+    return isset($_SESSION['atas_admin_autenticado']) && true === $_SESSION['atas_admin_autenticado'];
+}
+
+function responder_json(array $payload, $status_code = 200) {
+    status_header($status_code);
+    header('Content-Type: application/json; charset=utf-8');
+    echo wp_json_encode($payload);
+    exit;
+}
+
+function exigir_autenticacao_atas() {
+    if (!usuario_atas_autenticado()) {
+        responder_json(['success' => false, 'message' => 'Sessao expirada. Faca login novamente.'], 401);
+    }
+}
+
+function exigir_autenticacao_admin() {
+    exigir_autenticacao_atas();
+
+    if (!admin_atas_autenticado()) {
+        responder_json(['success' => false, 'message' => 'Acesso administrativo nao autenticado.'], 403);
+    }
+}
+
 // Cria as tabelas na primeira execução
 criar_tabelas_atas();
 
@@ -21,24 +50,47 @@ $senha_config = $wpdb->get_var("SELECT config_value FROM wincor_config WHERE con
 $senha_admin = $wpdb->get_var("SELECT config_value FROM wincor_config WHERE config_type = 'senha_admin'");
 
 // Processa autenticação do modal admin via AJAX
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'verificar_senha_admin') {
-    header('Content-Type: application/json');
-    $senha_digitada = $_POST['senha_admin'] ?? '';
-    if ($senha_digitada === $senha_admin) {
-        echo json_encode(['success' => true]);
-    } else {
-        echo json_encode(['success' => false, 'message' => 'Senha incorreta!']);
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
+    $acao = sanitize_key(wp_unslash($_POST['action']));
+    $acoes_admin = array(
+        'listar_config',
+        'adicionar_config',
+        'editar_config',
+        'deletar_config',
+        'listar_atas',
+        'exportar_csv',
+        'deletar_ata',
+    );
+
+    if ($acao === 'verificar_senha_admin') {
+        exigir_autenticacao_atas();
+
+        $senha_digitada = isset($_POST['senha_admin']) ? (string) wp_unslash($_POST['senha_admin']) : '';
+
+        if ($senha_admin !== null && hash_equals((string) $senha_admin, $senha_digitada)) {
+            session_regenerate_id(true);
+            $_SESSION['atas_admin_autenticado'] = true;
+            responder_json(['success' => true]);
+        }
+
+        unset($_SESSION['atas_admin_autenticado']);
+        responder_json(['success' => false, 'message' => 'Senha incorreta!'], 403);
     }
-    exit;
-}
+
+    if ($acao === 'logout_admin') {
+        exigir_autenticacao_atas();
+        unset($_SESSION['atas_admin_autenticado']);
+        responder_json(['success' => true]);
+    }
+
+    if (in_array($acao, $acoes_admin, true)) {
+        exigir_autenticacao_admin();
+        header('Content-Type: application/json; charset=utf-8');
 
 // Processa ações administrativas via AJAX
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
-    header('Content-Type: application/json');
-    
-    switch ($_POST['action']) {
+        switch ($acao) {
         case 'listar_config':
-            $tipo = sanitize_text_field($_POST['tipo']);
+            $tipo = isset($_POST['tipo']) ? sanitize_text_field(wp_unslash($_POST['tipo'])) : '';
             $items = $wpdb->get_results($wpdb->prepare(
                 "SELECT id, config_value, config_order FROM wincor_config WHERE config_type = %s ORDER BY config_order, id",
                 $tipo
@@ -47,8 +99,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             exit;
             
         case 'adicionar_config':
-            $tipo = sanitize_text_field($_POST['tipo']);
-            $valor = sanitize_text_field($_POST['valor']);
+            $tipo = isset($_POST['tipo']) ? sanitize_text_field(wp_unslash($_POST['tipo'])) : '';
+            $valor = isset($_POST['valor']) ? sanitize_text_field(wp_unslash($_POST['valor'])) : '';
             
             // Busca a maior ordem atual
             $max_order = $wpdb->get_var($wpdb->prepare(
@@ -75,7 +127,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             
         case 'editar_config':
             $id = intval($_POST['id']);
-            $valor = sanitize_text_field($_POST['valor']);
+            $valor = isset($_POST['valor']) ? sanitize_text_field(wp_unslash($_POST['valor'])) : '';
             
             $result = $wpdb->update(
                 'wincor_config',
@@ -271,11 +323,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             }
             exit;
     }
+    }
 }
 
 // Processa logout
 if (isset($_GET['logout'])) {
     unset($_SESSION['atas_autenticado']);
+    unset($_SESSION['atas_admin_autenticado']);
     header('Location: index.php');
     exit;
 }
@@ -283,9 +337,11 @@ if (isset($_GET['logout'])) {
 // Processa login
 $erro_login = '';
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['senha_acesso'])) {
-    $senha_digitada = $_POST['senha_acesso'];
+    $senha_digitada = (string) wp_unslash($_POST['senha_acesso']);
     if ($senha_digitada === $senha_config) {
+        session_regenerate_id(true);
         $_SESSION['atas_autenticado'] = true;
+        unset($_SESSION['atas_admin_autenticado']);
         header('Location: index.php');
         exit;
     } else {
@@ -985,6 +1041,16 @@ $obras = $wpdb->get_results("SELECT config_value FROM wincor_config WHERE config
         });
 
         // Função para carregar lista de técnicos ou obras
+        function encerrarSessaoAdmin() {
+            return fetch('index.php', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body: 'action=logout_admin'
+            }).catch(() => null);
+        }
+
         function carregarLista(tipo) {
             const containerId = tipo === 'tecnico' ? 'listaTecnicos' : 'listaObras';
             const container = document.getElementById(containerId);
@@ -1466,14 +1532,19 @@ $obras = $wpdb->get_results("SELECT config_value FROM wincor_config WHERE config
         // Reset do modal quando fechar
         document.getElementById('modalAdmin').addEventListener('hidden.bs.modal', function () {
             // Se houve alterações, recarrega a página
-            if (houveAlteracoes) {
-                location.reload();
-            }
-            
             document.getElementById('adminLogin').classList.remove('d-none');
             document.getElementById('adminConteudo').classList.add('d-none');
             document.getElementById('erroSenhaAdmin').classList.add('d-none');
             document.getElementById('senhaAdmin').value = '';
+
+            const precisaRecarregar = houveAlteracoes;
+            houveAlteracoes = false;
+
+            encerrarSessaoAdmin().finally(() => {
+                if (precisaRecarregar) {
+                    location.reload();
+                }
+            });
         });
     </script>
 </body>
