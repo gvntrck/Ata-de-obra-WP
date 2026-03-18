@@ -4,13 +4,13 @@ declare(strict_types=1);
 /**
  * Formulario de Registro de Atas de Obra
  *
- * @version 2.1.0
+ * @version 2.1.2
  */
 
 session_start();
 date_default_timezone_set('America/Sao_Paulo');
 
-define('ATA_OBRA_VERSAO', '2.1.0');
+define('ATA_OBRA_VERSAO', '2.1.2');
 define('ATA_OBRA_DB_PATH', __DIR__ . DIRECTORY_SEPARATOR . 'ata-obra.sqlite');
 define('ATA_OBRA_POR_PAGINA', 10);
 define('ATA_OBRA_SELF', $_SERVER['PHP_SELF'] ?? 'index-sqlite.php');
@@ -1331,47 +1331,62 @@ $opcoes_tecnicos = trim((string) ob_get_clean());
                             </div>
 
                             <div class="tab-pane fade" id="configuracao-panel" role="tabpanel">
-                                <div class="row g-3">
-                                    <div class="col-12 col-lg-6">
-                                        <div class="card h-100">
-                                            <div class="card-body">
-                                                <h3 class="h6">Senha de Acesso</h3>
-                                                <p class="text-muted small mb-3">Atualiza a senha solicitada na tela inicial do sistema.</p>
-                                                <form id="formConfigSenhaAcesso">
-                                                    <div class="mb-3">
-                                                        <label for="novaSenhaAcesso" class="form-label">Nova senha de acesso</label>
-                                                        <input type="password" class="form-control" id="novaSenhaAcesso" autocomplete="new-password" required>
-                                                    </div>
-                                                    <div class="mb-3">
-                                                        <label for="confirmarSenhaAcesso" class="form-label">Confirmar nova senha</label>
-                                                        <input type="password" class="form-control" id="confirmarSenhaAcesso" autocomplete="new-password" required>
-                                                    </div>
-                                                    <div class="d-grid">
-                                                        <button type="submit" class="btn btn-primary">Salvar senha de acesso</button>
-                                                    </div>
-                                                </form>
-                                            </div>
-                                        </div>
+                                <div class="border rounded-3 p-3">
+                                    <div class="mb-3">
+                                        <h3 class="h6 mb-0">Seguranca</h3>
                                     </div>
 
-                                    <div class="col-12 col-lg-6">
-                                        <div class="card h-100">
-                                            <div class="card-body">
-                                                <h3 class="h6">Senha Administrativa</h3>
-                                                <p class="text-muted small mb-3">Atualiza a senha usada para liberar o painel administrativo.</p>
-                                                <form id="formConfigSenhaAdmin">
-                                                    <div class="mb-3">
-                                                        <label for="novaSenhaAdminConfig" class="form-label">Nova senha administrativa</label>
-                                                        <input type="password" class="form-control" id="novaSenhaAdminConfig" autocomplete="new-password" required>
+                                    <div class="accordion" id="configuracaoAccordion">
+                                        <div class="accordion-item">
+                                            <h2 class="accordion-header" id="configuracaoSenhasHeading">
+                                                <button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#configuracaoSenhasCollapse" aria-expanded="true" aria-controls="configuracaoSenhasCollapse">
+                                                    Alterar senhas
+                                                </button>
+                                            </h2>
+                                            <div id="configuracaoSenhasCollapse" class="accordion-collapse collapse show" aria-labelledby="configuracaoSenhasHeading" data-bs-parent="#configuracaoAccordion">
+                                                <div class="accordion-body">
+                                                    <div class="row g-3">
+                                                        <div class="col-12 col-lg-6">
+                                                            <div class="border rounded-3 p-3 h-100">
+                                                                <h4 class="h6 mb-1">Acesso ao sistema</h4>
+                                                                <p class="text-muted small mb-3">Senha exibida na tela inicial para entrar no formulario.</p>
+                                                                <form id="formConfigSenhaAcesso">
+                                                                    <div class="mb-3">
+                                                                        <label for="novaSenhaAcesso" class="form-label">Nova senha de acesso</label>
+                                                                        <input type="password" class="form-control" id="novaSenhaAcesso" autocomplete="new-password" required>
+                                                                    </div>
+                                                                    <div class="mb-3">
+                                                                        <label for="confirmarSenhaAcesso" class="form-label">Confirmar nova senha</label>
+                                                                        <input type="password" class="form-control" id="confirmarSenhaAcesso" autocomplete="new-password" required>
+                                                                    </div>
+                                                                    <div class="d-grid">
+                                                                        <button type="submit" class="btn btn-primary">Salvar senha de acesso</button>
+                                                                    </div>
+                                                                </form>
+                                                            </div>
+                                                        </div>
+
+                                                        <div class="col-12 col-lg-6">
+                                                            <div class="border rounded-3 p-3 h-100">
+                                                                <h4 class="h6 mb-1">Painel administrativo</h4>
+                                                                <p class="text-muted small mb-3">Senha usada para liberar a administracao interna do modal.</p>
+                                                                <form id="formConfigSenhaAdmin">
+                                                                    <div class="mb-3">
+                                                                        <label for="novaSenhaAdminConfig" class="form-label">Nova senha administrativa</label>
+                                                                        <input type="password" class="form-control" id="novaSenhaAdminConfig" autocomplete="new-password" required>
+                                                                    </div>
+                                                                    <div class="mb-3">
+                                                                        <label for="confirmarSenhaAdminConfig" class="form-label">Confirmar nova senha</label>
+                                                                        <input type="password" class="form-control" id="confirmarSenhaAdminConfig" autocomplete="new-password" required>
+                                                                    </div>
+                                                                    <div class="d-grid">
+                                                                        <button type="submit" class="btn btn-warning">Salvar senha administrativa</button>
+                                                                    </div>
+                                                                </form>
+                                                            </div>
+                                                        </div>
                                                     </div>
-                                                    <div class="mb-3">
-                                                        <label for="confirmarSenhaAdminConfig" class="form-label">Confirmar nova senha</label>
-                                                        <input type="password" class="form-control" id="confirmarSenhaAdminConfig" autocomplete="new-password" required>
-                                                    </div>
-                                                    <div class="d-grid">
-                                                        <button type="submit" class="btn btn-warning">Salvar senha administrativa</button>
-                                                    </div>
-                                                </form>
+                                                </div>
                                             </div>
                                         </div>
                                     </div>
