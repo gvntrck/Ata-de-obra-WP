@@ -2,7 +2,7 @@
 /**
  * Formulário de Registro de Atas de Obra
  * 
- * @version 1.6.2
+ * @version 1.6.3
  */
 
 // Inicia a sessão
@@ -12,6 +12,8 @@ session_start();
 require_once('../../wp-load.php');
 
 global $wpdb;
+
+define('ATA_OBRA_VERSAO', '1.6.3');
 
 function usuario_atas_autenticado() {
     return isset($_SESSION['atas_autenticado']) && true === $_SESSION['atas_autenticado'];
@@ -397,6 +399,9 @@ if (!isset($_SESSION['atas_autenticado']) || $_SESSION['atas_autenticado'] !== t
                         </div>
                     </form>
                 </div>
+            </div>
+            <div class="text-center text-muted small mt-3">
+                Versao do sistema: <?php echo esc_html(ATA_OBRA_VERSAO); ?>
             </div>
         </div>
         <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.7/dist/js/bootstrap.min.js"></script>
@@ -794,6 +799,11 @@ $obras = $wpdb->get_results("SELECT config_value FROM wincor_config WHERE config
             </div>
         </div>
     </div>
+    <footer class="container mt-3">
+        <div class="text-center text-muted small">
+            Versao do sistema: <?php echo esc_html(ATA_OBRA_VERSAO); ?>
+        </div>
+    </footer>
 
     <!-- Modal Admin -->
     <div class="modal fade" id="modalAdmin" tabindex="-1" aria-labelledby="modalAdminLabel" aria-hidden="true" data-bs-backdrop="static" data-bs-keyboard="false">
