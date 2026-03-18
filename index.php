@@ -4,13 +4,13 @@ declare(strict_types=1);
 /**
  * Formulario de Registro de Atas de Obra
  *
- * @version 2.0.1
+ * @version 2.1.0
  */
 
 session_start();
 date_default_timezone_set('America/Sao_Paulo');
 
-define('ATA_OBRA_VERSAO', '2.0.1');
+define('ATA_OBRA_VERSAO', '2.1.0');
 define('ATA_OBRA_DB_PATH', __DIR__ . DIRECTORY_SEPARATOR . 'ata-obra.sqlite');
 define('ATA_OBRA_POR_PAGINA', 10);
 define('ATA_OBRA_SELF', $_SERVER['PHP_SELF'] ?? 'index-sqlite.php');
@@ -448,6 +448,68 @@ final class AtaObraSqliteRepository
         );
     }
 
+    public function setSingleConfigValue(string $type, string $value): void
+    {
+        $statement = $this->pdo->prepare(
+            'SELECT id
+            FROM wincor_config
+            WHERE config_type = :config_type
+            ORDER BY config_order, id
+            LIMIT 1'
+        );
+        $statement->execute([':config_type' => $type]);
+        $configId = $statement->fetchColumn();
+
+        $this->pdo->beginTransaction();
+
+        try {
+            if (false === $configId) {
+                $insert = $this->pdo->prepare(
+                    'INSERT INTO wincor_config (config_type, config_value, config_order)
+                    VALUES (:config_type, :config_value, 1)'
+                );
+                $insert->execute(
+                    [
+                        ':config_type' => $type,
+                        ':config_value' => $value,
+                    ]
+                );
+            } else {
+                $update = $this->pdo->prepare(
+                    'UPDATE wincor_config
+                    SET config_value = :config_value
+                    WHERE id = :id'
+                );
+                $update->execute(
+                    [
+                        ':config_value' => $value,
+                        ':id' => (int) $configId,
+                    ]
+                );
+
+                $delete = $this->pdo->prepare(
+                    'DELETE FROM wincor_config
+                    WHERE config_type = :config_type
+                    AND id <> :id'
+                );
+                $delete->execute(
+                    [
+                        ':config_type' => $type,
+                        ':id' => (int) $configId,
+                    ]
+                );
+            }
+
+            $this->pdo->commit();
+        } catch (Throwable $throwable) {
+            if ($this->pdo->inTransaction()) {
+                $this->pdo->rollBack();
+            }
+
+            throw $throwable;
+        }
+    }
+
     public function deleteConfig(int $id): bool
     {
         $statement = $this->pdo->prepare('DELETE FROM wincor_config WHERE id = :id');
@@ -634,6 +696,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         'adicionar_config',
         'editar_config',
         'deletar_config',
+        'atualizar_senha',
         'listar_atas',
         'exportar_csv',
         'deletar_ata',
@@ -704,6 +767,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                 }
 
                 responder_json(['success' => false, 'message' => 'Erro ao deletar']);
+
+            case 'atualizar_senha':
+                $tipoSenha = isset($_POST['tipo_senha']) ? sanitize_key($_POST['tipo_senha']) : '';
+                $novaSenha = isset($_POST['nova_senha']) ? (string) wp_unslash($_POST['nova_senha']) : '';
+                $tiposPermitidos = ['senha_atas', 'senha_admin'];
+
+                if (!in_array($tipoSenha, $tiposPermitidos, true)) {
+                    responder_json(['success' => false, 'message' => 'Tipo de senha invalido.'], 422);
+                }
+
+                if ('' === $novaSenha) {
+                    responder_json(['success' => false, 'message' => 'A nova senha nao pode estar vazia.'], 422);
+                }
+
+                $repo->setSingleConfigValue($tipoSenha, $novaSenha);
+
+                $mensagem = 'senha_admin' === $tipoSenha
+                    ? 'Senha administrativa atualizada com sucesso.'
+                    : 'Senha de acesso atualizada com sucesso.';
+
+                responder_json(['success' => true, 'message' => $mensagem]);
 
             case 'listar_atas':
                 $pagina = isset($_POST['pagina']) ? max(1, (int) $_POST['pagina']) : 1;
@@ -1178,6 +1262,11 @@ $opcoes_tecnicos = trim((string) ob_get_clean());
                                     Relatorios
                                 </button>
                             </li>
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link" id="configuracao-tab" data-bs-toggle="tab" data-bs-target="#configuracao-panel" type="button" role="tab">
+                                    Configuracao
+                                </button>
+                            </li>
                         </ul>
 
                         <div class="tab-content" id="adminTabsContent">
@@ -1239,6 +1328,54 @@ $opcoes_tecnicos = trim((string) ob_get_clean());
                                 <nav aria-label="Navegacao de paginas" id="paginacaoContainer" class="d-none">
                                     <ul class="pagination pagination-sm justify-content-center mt-3" id="paginacao"></ul>
                                 </nav>
+                            </div>
+
+                            <div class="tab-pane fade" id="configuracao-panel" role="tabpanel">
+                                <div class="row g-3">
+                                    <div class="col-12 col-lg-6">
+                                        <div class="card h-100">
+                                            <div class="card-body">
+                                                <h3 class="h6">Senha de Acesso</h3>
+                                                <p class="text-muted small mb-3">Atualiza a senha solicitada na tela inicial do sistema.</p>
+                                                <form id="formConfigSenhaAcesso">
+                                                    <div class="mb-3">
+                                                        <label for="novaSenhaAcesso" class="form-label">Nova senha de acesso</label>
+                                                        <input type="password" class="form-control" id="novaSenhaAcesso" autocomplete="new-password" required>
+                                                    </div>
+                                                    <div class="mb-3">
+                                                        <label for="confirmarSenhaAcesso" class="form-label">Confirmar nova senha</label>
+                                                        <input type="password" class="form-control" id="confirmarSenhaAcesso" autocomplete="new-password" required>
+                                                    </div>
+                                                    <div class="d-grid">
+                                                        <button type="submit" class="btn btn-primary">Salvar senha de acesso</button>
+                                                    </div>
+                                                </form>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div class="col-12 col-lg-6">
+                                        <div class="card h-100">
+                                            <div class="card-body">
+                                                <h3 class="h6">Senha Administrativa</h3>
+                                                <p class="text-muted small mb-3">Atualiza a senha usada para liberar o painel administrativo.</p>
+                                                <form id="formConfigSenhaAdmin">
+                                                    <div class="mb-3">
+                                                        <label for="novaSenhaAdminConfig" class="form-label">Nova senha administrativa</label>
+                                                        <input type="password" class="form-control" id="novaSenhaAdminConfig" autocomplete="new-password" required>
+                                                    </div>
+                                                    <div class="mb-3">
+                                                        <label for="confirmarSenhaAdminConfig" class="form-label">Confirmar nova senha</label>
+                                                        <input type="password" class="form-control" id="confirmarSenhaAdminConfig" autocomplete="new-password" required>
+                                                    </div>
+                                                    <div class="d-grid">
+                                                        <button type="submit" class="btn btn-warning">Salvar senha administrativa</button>
+                                                    </div>
+                                                </form>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -1391,6 +1528,36 @@ $opcoes_tecnicos = trim((string) ob_get_clean());
 
         function encerrarSessaoAdmin() {
             return postAction({ action: 'logout_admin' }).catch(() => null);
+        }
+
+        function atualizarSenha(tipoSenha, novaSenha, confirmarSenha) {
+            if (!novaSenha || !confirmarSenha) {
+                Swal.fire('Atencao', 'Preencha os dois campos da senha.', 'warning');
+                return Promise.resolve(false);
+            }
+
+            if (novaSenha !== confirmarSenha) {
+                Swal.fire('Atencao', 'A confirmacao da senha nao confere.', 'warning');
+                return Promise.resolve(false);
+            }
+
+            return postAction({
+                action: 'atualizar_senha',
+                tipo_senha: tipoSenha,
+                nova_senha: novaSenha
+            }).then(data => {
+                if (data.success) {
+                    houveAlteracoes = true;
+                    Swal.fire('Sucesso', data.message || 'Senha atualizada com sucesso.', 'success');
+                    return true;
+                }
+
+                Swal.fire('Erro', data.message || 'Erro ao atualizar senha.', 'error');
+                return false;
+            }).catch(() => {
+                Swal.fire('Erro', 'Erro ao atualizar senha. Tente novamente.', 'error');
+                return false;
+            });
         }
 
         function carregarLista(tipo) {
@@ -1603,6 +1770,32 @@ $opcoes_tecnicos = trim((string) ob_get_clean());
                 event.preventDefault();
                 adicionarItem('obra');
             }
+        });
+
+        document.getElementById('formConfigSenhaAcesso').addEventListener('submit', function (event) {
+            event.preventDefault();
+
+            const novaSenha = document.getElementById('novaSenhaAcesso').value;
+            const confirmarSenha = document.getElementById('confirmarSenhaAcesso').value;
+
+            atualizarSenha('senha_atas', novaSenha, confirmarSenha).then((success) => {
+                if (success) {
+                    event.target.reset();
+                }
+            });
+        });
+
+        document.getElementById('formConfigSenhaAdmin').addEventListener('submit', function (event) {
+            event.preventDefault();
+
+            const novaSenha = document.getElementById('novaSenhaAdminConfig').value;
+            const confirmarSenha = document.getElementById('confirmarSenhaAdminConfig').value;
+
+            atualizarSenha('senha_admin', novaSenha, confirmarSenha).then((success) => {
+                if (success) {
+                    event.target.reset();
+                }
+            });
         });
 
         function carregarRelatorios(pagina = 1) {
@@ -1846,6 +2039,8 @@ $opcoes_tecnicos = trim((string) ob_get_clean());
             document.getElementById('adminConteudo').classList.add('d-none');
             document.getElementById('erroSenhaAdmin').classList.add('d-none');
             document.getElementById('senhaAdmin').value = '';
+            document.getElementById('formConfigSenhaAcesso').reset();
+            document.getElementById('formConfigSenhaAdmin').reset();
 
             const precisaRecarregar = houveAlteracoes;
             houveAlteracoes = false;
